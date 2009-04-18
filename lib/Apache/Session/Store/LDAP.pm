@@ -13,7 +13,7 @@ use strict;
 use vars qw($VERSION);
 use Net::LDAP;
 
-$VERSION = '1.01';
+$VERSION = '0.02';
 
 sub new {
     my $class = shift;
@@ -24,71 +24,72 @@ sub insert {
     my $self    = shift;
     my $session = shift;
     $self->{args} = $session->{args};
-    
+
     my $msg = $self->ldap->add(
-        "cn=$session->{data}->{_session_id},".$self->{args}->{ldapConfBase},
+        "cn=$session->{data}->{_session_id}," . $self->{args}->{ldapConfBase},
         attrs => [
-        objectClass => [ 'top', 'applicationProcess' ],
-        cn => $session->{data}->{_session_id},
-        description => $session->{serialized},
+            objectClass => [ 'top', 'applicationProcess' ],
+            cn          => $session->{data}->{_session_id},
+            description => $session->{serialized},
         ],
     );
     $self->logError($msg) if ( $msg->code );
 }
 
 sub update {
-    my $self = shift;
+    my $self    = shift;
     my $session = shift;
     $self->{args} = $session->{args};
-    
+
     my $msg = $self->ldap->modify(
-        "cn=$session->{data}->{_session_id},".$self->{args}->{ldapConfBase},
-        replace => {
-            description => $session->{serialized},
-        },
+        "cn=$session->{data}->{_session_id}," . $self->{args}->{ldapConfBase},
+        replace => { description => $session->{serialized}, },
     );
-    
-    $self->logError($msg) if ($msg->code);
+
+    $self->logError($msg) if ( $msg->code );
 }
 
 sub materialize {
-    my $self = shift;
+    my $self    = shift;
     my $session = shift;
     $self->{args} = $session->{args};
-    
+
     my $msg = $self->ldap->search(
-        base => "cn=$session->{data}->{_session_id},".$self->{args}->{ldapConfBase},
+        base => "cn=$session->{data}->{_session_id},"
+          . $self->{args}->{ldapConfBase},
         filter => '(objectClass=applicationProcess)',
         scope  => 'base',
         attrs  => ['description'],
     );
-    
+
     $self->logError($msg) if ( $msg->code );
 
-    eval {$session->{serialized} = $msg->shift_entry()->get_value('description');};
+    eval {
+        $session->{serialized} = $msg->shift_entry()->get_value('description');
+    };
 
-    if (!defined $session->{serialized}) {
+    if ( !defined $session->{serialized} ) {
         die "Object does not exist in data store";
     }
 }
 
 sub remove {
-    my $self = shift;
+    my $self    = shift;
     my $session = shift;
     $self->{args} = $session->{args};
-    
-    $self->ldap->delete("cn=$session->{data}->{_session_id},".$self->{args}->{ldapConfBase});
+
+    $self->ldap->delete(
+        "cn=$session->{data}->{_session_id}," . $self->{args}->{ldapConfBase} );
 }
 
 sub ldap {
     my $self = shift;
-    return $self->{ldap} if($self->{ldap});
+    return $self->{ldap} if ( $self->{ldap} );
 
     # Parse servers configuration
     my $useTls = 0;
     my $tlsParam;
     my @servers = ();
-    #print STDERR Dumper($self);exit;use Data::Dumper;
     foreach my $server ( split /[\s,]+/, $self->{args}->{ldapServer} ) {
         if ( $server =~ m{^ldap\+tls://([^/]+)/?\??(.*)$} ) {
             $useTls   = 1;
@@ -105,8 +106,12 @@ sub ldap {
     my $ldap = Net::LDAP->new(
         \@servers,
         onerror => undef,
-        ( $self->{args}->{ldapPort} ? ( port => $self->{args}->{ldapPort} ) : () ),
-    ) or die('Unable to connect to '.join(' ',@servers));
+        (
+            $self->{args}->{ldapPort}
+            ? ( port => $self->{args}->{ldapPort} )
+            : ()
+        ),
+    ) or die( 'Unable to connect to ' . join( ' ', @servers ) );
 
     # Start TLS if needed
     if ($useTls) {
@@ -121,8 +126,8 @@ sub ldap {
     }
 
     # Bind with credentials
-    my $bind =
-      $ldap->bind( $self->{args}->{ldapBindDN}, password => $self->{args}->{ldapBindPassword} );
+    my $bind = $ldap->bind( $self->{args}->{ldapBindDN},
+        password => $self->{args}->{ldapBindPassword} );
     if ( $bind->code ) {
         $self->logError($bind);
         return;
@@ -138,20 +143,19 @@ sub logError {
     die "LDAP error " . $ldap_operation->code . ": " . $ldap_operation->error;
 }
 
-
 1;
 
 =pod
 
 =head1 NAME
 
-Apache::Session::Store::DB_File - Use DB_File to store persistent objects
+Apache::Session::Store::LDAP - Use LDAP to store persistent objects
 
 =head1 SYNOPSIS
 
- use Apache::Session::Store::DB_File;
+ use Apache::Session::Store::LDAP;
 
- my $store = new Apache::Session::Store::DB_File;
+ my $store = new Apache::Session::Store::LDAP;
 
  $store->insert($ref);
  $store->update($ref);
@@ -161,23 +165,36 @@ Apache::Session::Store::DB_File - Use DB_File to store persistent objects
 =head1 DESCRIPTION
 
 This module fulfills the storage interface of Apache::Session.  The serialized
-objects are stored in a Berkeley DB file using the DB_File Perl module.  If
-DB_File works on your platform, this module should also work.
+objects are stored in an LDAP directory file using the Net::LDAP Perl module.
 
 =head1 OPTIONS
 
-This module requires one argument in the usual Apache::Session style.  The
-name of the option is FileName, and the value is the full path of the database
-file to be used as the backing store.  If the database file does not exist,
-it will be created.  Example:
+This module requires one argument in the usual Apache::Session style. The
+keys ldapServer, ldapBase, ldapBindDN, ldapBindPassword are required. The key
+ldapPort is optional. Example:
 
- tie %s, 'Apache::Session::DB_File', undef,
-    {FileName => '/tmp/sessions'};
+ tie %s, 'Apache::Session::LDAP', undef,
+    {
+        ldapServer       => 'localhost',
+        ldapBase         => 'dc=example,dc=com',
+        ldapBindDN       => 'cn=admin,dc=example,dc=com',
+        ldapBindPassword => 'pass',
+    };
 
 =head1 AUTHOR
 
-This module was written by Jeffrey William Baker <jwbaker@acm.org>.
+Xavier Guimard, E<lt>guimard@E<gt>
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (C) 2009 by Xavier Guimard
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself, either Perl version 5.10.0 or,
+at your option, any later version of Perl 5 you may have available.
 
 =head1 SEE ALSO
 
-L<Apache::Session>, L<DB_File>
+L<Apache::Session>
+
+=cut
