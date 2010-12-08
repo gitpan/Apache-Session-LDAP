@@ -3,14 +3,14 @@ package Apache::Session::LDAP;
 use strict;
 use vars qw(@ISA $VERSION);
 
-$VERSION = '0.02';
+$VERSION = '0.1';
 @ISA = qw(Apache::Session);
 
 use Apache::Session;
 use Apache::Session::Lock::Null;
 use Apache::Session::Store::LDAP;
 use Apache::Session::Generate::MD5;
-use Apache::Session::Serialize::Storable;
+use Apache::Session::Serialize::Base64;
 
 sub populate {
     my $self = shift;
@@ -19,8 +19,8 @@ sub populate {
     $self->{lock_manager} = new Apache::Session::Lock::Null $self;
     $self->{generate}     = \&Apache::Session::Generate::MD5::generate;
     $self->{validate}     = \&Apache::Session::Generate::MD5::validate;
-    $self->{serialize}    = \&Apache::Session::Serialize::Storable::serialize;
-    $self->{unserialize}  = \&Apache::Session::Serialize::Storable::unserialize;
+    $self->{serialize}    = \&Apache::Session::Serialize::Base64::serialize;
+    $self->{unserialize}  = \&Apache::Session::Serialize::Base64::unserialize;
 
     return $self;
 }
@@ -36,7 +36,7 @@ Apache::Session::LDAP - An implementation of Apache::Session
 =head1 SYNOPSIS
 
   use Apache::Session::LDAP;
-  tie %hash, 'Apache::Session::DB_File', $id, {
+  tie %hash, 'Apache::Session::LDAP', $id, {
     ldapServer       => 'ldap://localhost:389',
     ldapConfBase     => 'dmdName=applications,dc=example,dc=com',
     ldapBindDN       => 'cn=admin,dc=example,dc=com',
@@ -45,12 +45,12 @@ Apache::Session::LDAP - An implementation of Apache::Session
 
 =head1 DESCRIPTION
 
-This module is an implementation of Apache::Session.  It uses an LDAP directory
+This module is an implementation of Apache::Session. It uses an LDAP directory
 to store datas.
 
 =head1 AUTHOR
 
-Xavier Guimard, E<lt>guimard@E<gt>
+Xavier Guimard, E<lt>x.guimard@free.frE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
