@@ -4,7 +4,7 @@ use strict;
 use vars qw($VERSION);
 use Net::LDAP;
 
-$VERSION = '0.2';
+$VERSION = '0.3';
 
 sub new {
     my $class = shift;
@@ -24,6 +24,8 @@ sub insert {
             description => $session->{serialized},
         ],
     );
+
+    $self->ldap->unbind() && delete $self->{ldap};
     $self->logError($msg) if ( $msg->code );
 }
 
@@ -37,6 +39,7 @@ sub update {
         replace => { description => $session->{serialized}, },
     );
 
+    $self->ldap->unbind() && delete $self->{ldap};
     $self->logError($msg) if ( $msg->code );
 }
 
@@ -53,6 +56,7 @@ sub materialize {
         attrs  => ['description'],
     );
 
+    $self->ldap->unbind() && delete $self->{ldap};
     $self->logError($msg) if ( $msg->code );
 
     eval {
@@ -71,6 +75,8 @@ sub remove {
 
     $self->ldap->delete(
         "cn=$session->{data}->{_session_id}," . $self->{args}->{ldapConfBase} );
+
+    $self->ldap->unbind() && delete $self->{ldap};
 }
 
 sub ldap {
@@ -179,6 +185,7 @@ Xavier Guimard, E<lt>guimard@E<gt>
 =head1 COPYRIGHT AND LICENSE
 
 Copyright (C) 2009, 2012 by Xavier Guimard
+Copyright (C) 2014 by Clement Oudot
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself, either Perl version 5.10.0 or,
